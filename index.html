@@ -378,6 +378,18 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--text);min-
   <div id="tab-content-level" style="display:none"></div>
   <div id="tab-content-history" style="display:none"></div>
   <div id="noDataMsg" style="text-align:center;color:var(--muted);font-size:15px;padding:40px 0;display:none">暂无训练记录<br>快去练起来吧 💪</div>
+
+  <div style="margin-top:28px;border-top:1px solid #EEE;padding-top:20px">
+    <div style="font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">💾 数据备份</div>
+    <div style="display:flex;gap:10px">
+      <button onclick="exportData()" style="flex:1;padding:14px;border:2px solid #6BCB77;border-radius:14px;background:#F0FBF2;color:#2D9A4E;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer">⬆️ 导出备份</button>
+      <label style="flex:1;padding:14px;border:2px solid #4D96FF;border-radius:14px;background:#EEF5FF;color:#1A5FCC;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer;text-align:center">
+        ⬇️ 导入恢复
+        <input type="file" accept=".json" onchange="importData(event)" style="display:none">
+      </label>
+    </div>
+    <div id="importMsg" style="font-size:13px;text-align:center;padding:8px 0;color:var(--muted);min-height:20px"></div>
+  </div>
 </div>
 
 <script>
@@ -903,6 +915,59 @@ function renderLevelTab(strengthSessions){
   });
 
   el.innerHTML=html;
+}
+
+// ===== EXPORT / IMPORT =====
+function exportData(){
+  const data={
+    exportDate: new Date().toISOString(),
+    version: 1,
+    sessions: db.sessions,
+    lastPart: db.lastPart,
+    lastPartDate: db.lastPartDate,
+    lastPartNote: db.lastPartNote,
+  };
+  const json=JSON.stringify(data,null,2);
+  const blob=new Blob([json],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const dateStr=new Date().toISOString().split('T')[0];
+  a.href=url;
+  a.download=`gym-backup-${dateStr}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  document.getElementById('importMsg').textContent='✅ 已导出 '+db.sessions.length+' 条记录';
+  document.getElementById('importMsg').style.color='var(--green)';
+}
+
+function importData(event){
+  const file=event.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!data.sessions||!Array.isArray(data.sessions))throw new Error('格式不对');
+      const msg=document.getElementById('importMsg');
+      if(db.sessions.length>0){
+        if(!confirm('导入会覆盖现有的 '+db.sessions.length+' 条记录，确定吗？'))return;
+      }
+      db.sessions=data.sessions;
+      db.lastPart=data.lastPart||null;
+      db.lastPartDate=data.lastPartDate||null;
+      db.lastPartNote=data.lastPartNote||null;
+      saveDB();
+      msg.textContent='✅ 导入成功！共 '+db.sessions.length+' 条记录';
+      msg.style.color='var(--green)';
+      renderRecent();
+    }catch(err){
+      const msg=document.getElementById('importMsg');
+      msg.textContent='❌ 导入失败：文件格式不对';
+      msg.style.color='var(--pink)';
+    }
+  };
+  reader.readAsText(file);
+  event.target.value='';
 }
 
 function renderHistoryTab(){
